@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fraud_detection_bank — Admin Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f12;
+    --bg2: #13161b;
+    --bg3: #1a1e26;
+    --bg4: #20252f;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8eaf0;
+    --text2: #8b90a0;
+    --text3: #555b6a;
+    --blue: #4a9eff;
+    --blue-bg: rgba(74,158,255,0.08);
+    --green: #3ddc84;
+    --green-bg: rgba(61,220,132,0.08);
+    --red: #ff5f5f;
+    --red-bg: rgba(255,95,95,0.08);
+    --yellow: #ffc947;
+    --yellow-bg: rgba(255,201,71,0.08);
+    --pink: #e879f9;
+    --pink-bg: rgba(232,121,249,0.08);
+    --teal: #2dd4bf;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; }
+
+  /* Layout */
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar { width: 220px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 0; overflow-y: auto; }
+  .main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+  /* Sidebar */
+  .sidebar-logo { padding: 18px 16px 12px; border-bottom: 1px solid var(--border); }
+  .sidebar-logo-db { font-size: 11px; color: var(--blue); font-weight: 600; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .sidebar-logo-name { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+  .sidebar-logo-host { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  .sidebar-section { padding: 12px 10px 4px; }
+  .sidebar-section-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); padding: 0 6px; margin-bottom: 4px; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; color: var(--text2); font-size: 12px; transition: all 0.15s; border: none; background: none; width: 100%; text-align: left; font-family: var(--mono); }
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: var(--blue-bg); color: var(--blue); }
+  .nav-item .icon { width: 16px; text-align: center; font-size: 12px; }
+  .nav-badge { margin-left: auto; font-size: 9px; background: var(--bg4); color: var(--text3); padding: 1px 6px; border-radius: 10px; }
+  .nav-badge.red { background: var(--red-bg); color: var(--red); }
+
+  .conn-status { margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+  .conn-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2.5s infinite; }
+  .conn-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+  .conn-label { font-size: 11px; color: var(--text2); }
+
+  /* Topbar */
+  .topbar { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; background: var(--bg); }
+  .topbar-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .topbar-sub { font-size: 11px; color: var(--text3); margin-left: 2px; }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn { padding: 6px 14px; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: var(--mono); border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); transition: all 0.15s; }
+  .btn:hover { background: var(--bg4); color: var(--text); }
+  .btn.primary { background: var(--blue-bg); color: var(--blue); border-color: rgba(74,158,255,0.25); }
+  .btn.primary:hover { background: rgba(74,158,255,0.15); }
+  .btn.danger { background: var(--red-bg); color: var(--red); border-color: rgba(255,95,95,0.25); }
+  .api-url-bar { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+  .api-url-label { color: var(--text3); }
+  .api-url-input { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; color: var(--text2); font-family: var(--mono); font-size: 10px; width: 200px; }
+  .api-url-input:focus { outline: none; border-color: var(--border2); }
+
+  /* Content */
+  .content { padding: 24px; flex: 1; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Stats */
+  .stat-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 24px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text3); margin-bottom: 8px; }
+  .stat-value { font-size: 22px; font-weight: 600; }
+  .stat-value.blue { color: var(--blue); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.pink { color: var(--pink); }
+  .stat-value.teal { color: var(--teal); }
+
+  /* Section */
+  .section { margin-bottom: 24px; }
+  .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text3); }
+  .section-count { font-size: 9px; color: var(--text3); background: var(--bg3); padding: 1px 7px; border-radius: 10px; }
+
+  /* Table */
+  .tbl-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .tbl-wrap table { width: 100%; border-collapse: collapse; }
+  .tbl-wrap th { padding: 9px 14px; text-align: left; font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); background: var(--bg3); white-space: nowrap; }
+  .tbl-wrap td { padding: 9px 14px; border-bottom: 1px solid var(--border); color: var(--text); font-size: 12px; white-space: nowrap; }
+  .tbl-wrap tr:last-child td { border-bottom: none; }
+  .tbl-wrap tr:hover td { background: var(--bg3); }
+
+  .badge { font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-blue { background: var(--blue-bg); color: var(--blue); }
+  .badge-pink { background: var(--pink-bg); color: var(--pink); }
+
+  /* Query log */
+  .qlog { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .qlog-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--bg3); }
+  .qlog-head-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
+  .qlog-count { font-size: 9px; color: var(--text3); background: var(--bg4); padding: 1px 7px; border-radius: 10px; }
+  .qlog-clear { margin-left: auto; font-size: 10px; color: var(--text3); cursor: pointer; padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; background: none; font-family: var(--mono); }
+  .qlog-clear:hover { color: var(--text2); }
+  .qlog-entries { max-height: 340px; overflow-y: auto; }
+  .qlog-entry { display: flex; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--border); align-items: flex-start; animation: fadein 0.2s ease; }
+  .qlog-entry:last-child { border-bottom: none; }
+  @keyframes fadein { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:none} }
+  .qlog-time { font-size: 10px; color: var(--text3); min-width: 68px; padding-top: 1px; }
+  .qlog-type { font-size: 10px; font-weight: 700; min-width: 64px; padding-top: 1px; }
+  .qlog-type.SELECT { color: var(--blue); }
+  .qlog-type.INSERT { color: var(--green); }
+  .qlog-type.UPDATE { color: var(--yellow); }
+  .qlog-type.CALL { color: var(--teal); }
+  .qlog-type.TRIGGER { color: var(--pink); }
+  .qlog-type.CREATE { color: var(--text3); }
+  .qlog-type.ERROR { color: var(--red); }
+  .qlog-sql { flex: 1; font-size: 11px; color: var(--text); line-height: 1.5; word-break: break-all; }
+  .qlog-ms { font-size: 10px; color: var(--text3); min-width: 45px; text-align: right; }
+
+  /* Query executor */
+  .qe-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 20px; }
+  .qe-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--bg3); flex-wrap: wrap; gap: 6px; }
+  .qe-preset { font-size: 10px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px; background: none; color: var(--text2); cursor: pointer; font-family: var(--mono); }
+  .qe-preset:hover { background: var(--bg4); color: var(--text); }
+  .qe-run { font-size: 10px; padding: 3px 12px; border: 1px solid rgba(61,220,132,0.3); border-radius: 4px; background: var(--green-bg); color: var(--green); cursor: pointer; font-family: var(--mono); font-weight: 600; margin-left: auto; }
+  .qe-run:hover { background: rgba(61,220,132,0.15); }
+  .qe-body { padding: 12px 14px; }
+  textarea.qe-input { width: 100%; height: 80px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; color: var(--text); font-family: var(--mono); font-size: 12px; resize: vertical; }
+  textarea.qe-input:focus { outline: none; border-color: var(--border2); }
+  .qe-result { margin-top: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; min-height: 42px; max-height: 260px; overflow: auto; }
+  .qe-result-meta { padding: 6px 12px; border-bottom: 1px solid var(--border); font-size: 10px; color: var(--text3); display: flex; justify-content: space-between; }
+  .qe-empty { padding: 12px; font-size: 11px; color: var(--text3); }
+  .qe-error { padding: 10px 12px; font-size: 11px; color: var(--red); }
+
+  /* Schema */
+  .schema-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .schema-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .schema-card-head { padding: 10px 14px; background: var(--bg3); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .schema-card-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .schema-card-count { font-size: 10px; color: var(--text3); }
+  .schema-col-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 14px; border-bottom: 1px solid var(--border); }
+  .schema-col-row:last-child { border-bottom: none; }
+  .schema-col-name { font-size: 11px; color: var(--text); display: flex; align-items: center; gap: 5px; }
+  .schema-col-type { font-size: 10px; color: var(--text3); }
+  .pk-tag { font-size: 8px; color: var(--yellow); background: var(--yellow-bg); padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+  .fk-tag { font-size: 8px; color: var(--blue); background: var(--blue-bg); padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+
+  /* Procedures */
+  .proc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .proc-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .proc-card-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--bg3); border-bottom: 1px solid var(--border); }
+  .proc-card-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .proc-type-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .proc-type-badge.proc { color: var(--teal); }
+  .proc-type-badge.trigger { color: var(--pink); }
+  .proc-type-badge.select { color: var(--blue); }
+  .proc-body { padding: 12px 14px; }
+  pre.proc-code { font-family: var(--mono); font-size: 11px; color: var(--text2); white-space: pre-wrap; line-height: 1.6; }
+
+  /* Exec viz */
+  .exec-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+  .exec-card-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg3); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text2); }
+  .exec-step { display: flex; gap: 14px; padding: 10px 14px; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .exec-step:last-child { border-bottom: none; }
+  .exec-num { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border2); font-size: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; color: var(--text3); }
+  .exec-detail { flex: 1; }
+  .exec-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .exec-desc { font-size: 11px; color: var(--text2); line-height: 1.5; }
+  .exec-sql { font-size: 10px; color: var(--text3); margin-top: 4px; font-family: var(--mono); }
+  .exec-ok { font-size: 10px; color: var(--green); }
+  .exec-type { font-size: 9px; font-weight: 700; min-width: 55px; text-align: right; }
+
+  /* Transfer form */
+  .transfer-form { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; max-width: 400px; }
+  .form-row { margin-bottom: 14px; }
+  .form-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; display: block; }
+  .form-input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 7px 10px; color: var(--text); font-family: var(--mono); font-size: 12px; }
+  .form-input:focus { outline: none; border-color: var(--border2); }
+  .form-msg { margin-top: 12px; font-size: 11px; padding: 8px 12px; border-radius: 5px; }
+  .form-msg.ok { background: var(--green-bg); color: var(--green); }
+  .form-msg.err { background: var(--red-bg); color: var(--red); }
+
+  /* Loading */
+  .loading { display: flex; align-items: center; gap: 8px; padding: 20px; color: var(--text3); font-size: 12px; }
+  .spin { width: 14px; height: 14px; border: 1px solid var(--border2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty { padding: 20px; text-align: center; color: var(--text3); font-size: 12px; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-db">● MySQL</div>
+      <div class="sidebar-logo-name">fraud_detection_bank</div>
+      <div class="sidebar-logo-host" id="conn-host">connecting...</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Dashboard</div>
+      <button class="nav-item active" onclick="nav('overview')">
+        <span class="icon">◈</span> Overview
+      </button>
+      <button class="nav-item" onclick="nav('query-log')">
+        <span class="icon">≡</span> Query Log
+        <span class="nav-badge" id="log-badge">0</span>
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Tables</div>
+      <button class="nav-item" onclick="nav('tbl-Users')"><span class="icon">▤</span> Users</button>
+      <button class="nav-item" onclick="nav('tbl-Accounts')"><span class="icon">▤</span> Accounts</button>
+      <button class="nav-item" onclick="nav('tbl-Transactions')"><span class="icon">▤</span> Transactions</button>
+      <button class="nav-item" onclick="nav('tbl-Fraud_Alerts')">
+        <span class="icon">▤</span> Fraud_Alerts
+        <span class="nav-badge red" id="badge-Fraud_Alerts">0</span>
+      </button>
+      <button class="nav-item" onclick="nav('tbl-Audit_Log')"><span class="icon">▤</span> Audit_Log</button>
+      <button class="nav-item" onclick="nav('tbl-Risk_Score_History')"><span class="icon">▤</span> Risk_Score_History</button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Tools</div>
+      <button class="nav-item" onclick="nav('schema')"><span class="icon">⊞</span> Schema</button>
+      <button class="nav-item" onclick="nav('executor')"><span class="icon">▶</span> Exec Viz</button>
+      <button class="nav-item" onclick="nav('transfer')"><span class="icon">⇄</span> Transfer Money</button>
+    </div>
+
+    <div class="conn-status">
+      <div class="conn-dot" id="conn-dot"></div>
+      <div class="conn-label" id="conn-label">disconnected</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="page-title">Overview</div>
+        <div class="topbar-sub" id="page-sub">fraud_detection_bank admin panel</div>
+      </div>
+      <div class="topbar-actions">
+        <div class="api-url-bar">
+          <span class="api-url-label">API:</span>
+          <input class="api-url-input" id="api-url" value="http://localhost:3001" />
+        </div>
+        <button class="btn primary" onclick="refreshAll()">↻ Refresh</button>
+        <button class="btn" onclick="testConn()">Test Connection</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- Overview -->
+      <div id="panel-overview" class="panel active">
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value blue" id="stat-Users">—</div></div>
+          <div class="stat-card"><div class="stat-label">Accounts</div><div class="stat-value teal" id="stat-Accounts">—</div></div>
+          <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value green" id="stat-Transactions">—</div></div>
+          <div class="stat-card"><div class="stat-label">Fraud Alerts</div><div class="stat-value red" id="stat-Fraud_Alerts">—</div></div>
+          <div class="stat-card"><div class="stat-label">Audit Logs</div><div class="stat-value yellow" id="stat-Audit_Log">—</div></div>
+          <div class="stat-card"><div class="stat-label">Risk History</div><div class="stat-value pink" id="stat-Risk_Score_History">—</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-title">High Risk Accounts (risk_score &gt; 50)</div></div>
+          <div class="tbl-wrap" id="high-risk-wrap"><div class="empty">Loading...</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-title">Recent Fraud Alerts</div></div>
+          <div class="tbl-wrap" id="fraud-overview-wrap"><div class="empty">Loading...</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><div class="section-title">Recent Audit Log</div></div>
+          <div class="tbl-wrap" id="audit-overview-wrap"><div class="empty">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- Query Log -->
+      <div id="panel-query-log" class="panel">
+        <div class="qlog">
+          <div class="qlog-head">
+            <div class="conn-dot connected" style="flex-shrink:0"></div>
+            <div class="qlog-head-label">Live Query Log</div>
+            <div class="qlog-count" id="qlog-count">0 entries</div>
+            <button class="qlog-clear" onclick="clearLog()">clear</button>
+          </div>
+          <div class="qlog-entries" id="qlog-entries">
+            <div class="qe-empty">No queries yet. Interact with the dashboard to see queries here.</div>
+          </div>
+        </div>
+
+        <div class="qe-wrap">
+          <div class="qe-head">
+            <button class="qe-preset" onclick="setQ('SELECT * FROM Users')">Users</button>
+            <button class="qe-preset" onclick="setQ('SELECT * FROM Accounts')">Accounts</button>
+            <button class="qe-preset" onclick="setQ('SELECT * FROM Transactions ORDER BY txn_id DESC')">Transactions</button>
+            <button class="qe-preset" onclick="setQ('SELECT * FROM Fraud_Alerts ORDER BY alert_id DESC')">Fraud_Alerts</button>
+            <button class="qe-preset" onclick="setQ('SELECT * FROM Audit_Log ORDER BY log_id DESC')">Audit_Log</button>
+            <button class="qe-preset" onclick="setQ('SELECT account_id, risk_score FROM Accounts WHERE risk_score > 50')">High Risk</button>
+            <button class="qe-preset" onclick="setQ('SELECT sender_account, COUNT(*) AS txn_count FROM Transactions WHERE created_at >= NOW() - INTERVAL 10 MINUTE GROUP BY sender_account HAVING COUNT(*) > 5')">Rapid Txn</button>
+            <button class="qe-preset" onclick="setQ('SELECT receiver_account, COUNT(DISTINCT sender_account) AS senders FROM Transactions GROUP BY receiver_account HAVING COUNT(DISTINCT sender_account) > 5')">Round Trip</button>
+            <button class="qe-preset" onclick="setQ('SHOW TABLES')">Tables</button>
+            <button class="qe-run" onclick="runQuery()">▶ Run</button>
+          </div>
+          <div class="qe-body">
+            <textarea class="qe-input" id="qe-input" placeholder="SELECT * FROM Users;"></textarea>
+            <div class="qe-result" id="qe-result">
+              <div class="qe-empty">Run a query to see results</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table panels (generated) -->
+      <div id="panel-tbl-Users" class="panel"><div class="loading"><div class="spin"></div>Loading Users...</div></div>
+      <div id="panel-tbl-Accounts" class="panel"><div class="loading"><div class="spin"></div>Loading Accounts...</div></div>
+      <div id="panel-tbl-Transactions" class="panel"><div class="loading"><div class="spin"></div>Loading Transactions...</div></div>
+      <div id="panel-tbl-Fraud_Alerts" class="panel"><div class="loading"><div class="spin"></div>Loading Fraud_Alerts...</div></div>
+      <div id="panel-tbl-Audit_Log" class="panel"><div class="loading"><div class="spin"></div>Loading Audit_Log...</div></div>
+      <div id="panel-tbl-Risk_Score_History" class="panel"><div class="loading"><div class="spin"></div>Loading Risk_Score_History...</div></div>
+
+      <!-- Schema -->
+      <div id="panel-schema" class="panel">
+        <div class="section-head"><div class="section-title">Table Schema</div></div>
+        <div class="schema-grid" id="schema-grid"><div class="loading"><div class="spin"></div>Loading schema...</div></div>
+        <div class="section-head" style="margin-top:20px"><div class="section-title">Stored Procedures & Triggers</div></div>
+        <div class="proc-grid" id="proc-grid"><div class="loading"><div class="spin"></div>Loading routines...</div></div>
+      </div>
+
+      <!-- Executor Viz -->
+      <div id="panel-executor" class="panel">
+        <div id="exec-content"></div>
+      </div>
+
+      <!-- Transfer -->
+      <div id="panel-transfer" class="panel">
+        <div class="section-head"><div class="section-title">Transfer Money</div></div>
+        <div class="transfer-form">
+          <div class="form-row">
+            <label class="form-label">Sender Account ID</label>
+            <input class="form-input" id="tf-sender" type="number" placeholder="1" />
+          </div>
+          <div class="form-row">
+            <label class="form-label">Receiver Account ID</label>
+            <input class="form-input" id="tf-receiver" type="number" placeholder="2" />
+          </div>
+          <div class="form-row">
+            <label class="form-label">Amount (₹)</label>
+            <input class="form-input" id="tf-amount" type="number" placeholder="500" />
+          </div>
+          <button class="btn primary" onclick="doTransfer()" style="width:100%;padding:8px">Execute CALL transfer_money()</button>
+          <div id="tf-msg"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = () => document.getElementById('api-url').value.replace(/\/$/, '');
+let logEntries = [];
+let logCount = 0;
+
+function addLog(type, sql, ms, err) {
+  logCount++;
+  const entry = { type, sql, ms, err, time: new Date().toTimeString().slice(0,8) };
+  logEntries.unshift(entry);
+  if (logEntries.length > 200) logEntries.pop();
+  document.getElementById('log-badge').textContent = logCount;
+  renderLogEntry(entry);
+  document.getElementById('qlog-count').textContent = logEntries.length + ' entries';
+}
+
+function renderLogEntry(e) {
+  const c = document.getElementById('qlog-entries');
+  if (c.querySelector('.qe-empty')) c.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'qlog-entry';
+  div.innerHTML = `<span class="qlog-time">${e.time}</span><span class="qlog-type ${e.type}">${e.type}</span><span class="qlog-sql">${e.err ? '<span style="color:var(--red)">ERROR: ' + e.err + '</span>' : e.sql}</span><span class="qlog-ms">${e.ms ? e.ms + 'ms' : ''}</span>`;
+  c.insertBefore(div, c.firstChild);
+}
+
+function clearLog() {
+  logEntries = [];
+  document.getElementById('qlog-entries').innerHTML = '<div class="qe-empty">Log cleared.</div>';
+  document.getElementById('qlog-count').textContent = '0 entries';
+}
+
+async function apiFetch(path, opts = {}) {
+  const start = Date.now();
+  try {
+    const res = await fetch(API() + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    const ms = Date.now() - start;
+    const data = await res.json();
+    return { data, ms, ok: res.ok };
+  } catch (e) {
+    return { data: { error: e.message }, ms: Date.now() - start, ok: false };
+  }
+}
+
+async function testConn() {
+  const dot = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  const host = document.getElementById('conn-host');
+  dot.className = 'conn-dot';
+  label.textContent = 'connecting...';
+  const { data, ok, ms } = await apiFetch('/api/ping');
+  addLog('SELECT', 'SELECT 1  /* connection test */', ms, ok ? null : data.error);
+  if (ok && data.ok) {
+    dot.className = 'conn-dot connected';
+    label.textContent = 'connected';
+    host.textContent = data.host + ' / ' + data.db;
+  } else {
+    dot.className = 'conn-dot error';
+    label.textContent = 'error';
+    host.textContent = data.error || 'connection failed';
+  }
+}
+
+async function loadStats() {
+  const { data, ok, ms } = await apiFetch('/api/stats');
+  if (!ok) return;
+  addLog('SELECT', 'SELECT COUNT(*) FROM each table', ms);
+  const tables = ['Users','Accounts','Transactions','Fraud_Alerts','Audit_Log','Risk_Score_History'];
+  tables.forEach(t => {
+    const el = document.getElementById('stat-' + t);
+    if (el) el.textContent = data[t] ?? '—';
+    const badge = document.getElementById('badge-' + t);
+    if (badge) badge.textContent = data[t] ?? 0;
+  });
+}
+
+function renderTable(rows, cols, container) {
+  if (!rows || !rows.length) { container.innerHTML = '<div class="empty">No records found</div>'; return; }
+  const th = cols.map(c => `<th>${c}</th>`).join('');
+  const tb = rows.map(r => `<tr>${cols.map(c => {
+    const v = r[c];
+    if (c === 'risk_level') return `<td><span class="badge ${v==='HIGH'?'badge-red':v==='LOW'?'badge-green':'badge-yellow'}">${v}</span></td>`;
+    if (c === 'status') return `<td><span class="badge ${v==='SUCCESS'?'badge-green':'badge-red'}">${v}</span></td>`;
+    if (c === 'risk_score' && v > 50) return `<td style="color:var(--red)">${v}</td>`;
+    if (c === 'risk_score' && v > 20) return `<td style="color:var(--yellow)">${v}</td>`;
+    if (String(c).includes('email')) return `<td style="color:var(--blue)">${v ?? 'NULL'}</td>`;
+    if (v === null || v === undefined) return `<td style="color:var(--text3)">NULL</td>`;
+    return `<td>${v}</td>`;
+  }).join('')}</tr>`).join('');
+  container.innerHTML = `<table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+}
+
+async function loadOverview() {
+  const [hr, fa, al] = await Promise.all([
+    apiFetch('/api/high-risk'),
+    apiFetch('/api/table/Fraud_Alerts'),
+    apiFetch('/api/table/Audit_Log'),
+  ]);
+  if (hr.ok) { addLog('SELECT', 'SELECT a.*, u.name FROM Accounts JOIN Users ... WHERE risk_score > 50', hr.ms); renderTable(hr.data, hr.data.length ? Object.keys(hr.data[0]) : [], document.getElementById('high-risk-wrap')); }
+  if (fa.ok) { addLog('SELECT', 'SELECT * FROM Fraud_Alerts ORDER BY 1 DESC LIMIT 200', fa.ms); renderTable(fa.data.rows, fa.data.columns, document.getElementById('fraud-overview-wrap')); }
+  if (al.ok) { addLog('SELECT', 'SELECT * FROM Audit_Log ORDER BY 1 DESC LIMIT 200', al.ms); renderTable(al.data.rows, al.data.columns, document.getElementById('audit-overview-wrap')); }
+}
+
+const TABLE_NAMES = ['Users','Accounts','Transactions','Fraud_Alerts','Audit_Log','Risk_Score_History'];
+const tableLoaded = {};
+
+async function loadTable(name) {
+  if (tableLoaded[name]) return;
+  const { data, ok, ms } = await apiFetch('/api/table/' + name);
+  addLog('SELECT', `SELECT * FROM ${name} ORDER BY 1 DESC LIMIT 200`, ms, ok ? null : data.error);
+  const panel = document.getElementById('panel-tbl-' + name);
+  if (ok) {
+    const head = `<div class="section-head" style="margin-bottom:10px"><div class="section-title">${name}</div><div class="section-count">${data.rows.length} rows</div></div>`;
+    const wrap = document.createElement('div');
+    wrap.className = 'tbl-wrap';
+    renderTable(data.rows, data.columns, wrap);
+    panel.innerHTML = head;
+    panel.appendChild(wrap);
+    tableLoaded[name] = true;
+  } else {
+    panel.innerHTML = `<div class="empty" style="color:var(--red)">${data.error}</div>`;
+  }
+}
+
+async function loadSchema() {
+  const [sc, rt] = await Promise.all([apiFetch('/api/schema'), apiFetch('/api/routines')]);
+  addLog('SELECT', 'SELECT ... FROM information_schema.TABLES, COLUMNS, KEY_COLUMN_USAGE', sc.ms);
+  addLog('SELECT', 'SELECT ... FROM information_schema.ROUTINES, TRIGGERS', rt.ms);
+
+  const sg = document.getElementById('schema-grid');
+  if (sc.ok) {
+    sg.innerHTML = Object.entries(sc.data).map(([name, info]) => `
+      <div class="schema-card">
+        <div class="schema-card-head">
+          <span class="schema-card-name">${name}</span>
+          <span class="schema-card-count">~${info.rowCount} rows</span>
+        </div>
+        ${info.columns.map(c => `
+          <div class="schema-col-row">
+            <span class="schema-col-name">${c.name}${c.pk ? '<span class="pk-tag">PK</span>' : ''}${c.fk ? `<span class="fk-tag">FK→${c.fk}</span>` : ''}</span>
+            <span class="schema-col-type">${c.type}</span>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+  } else sg.innerHTML = `<div class="empty" style="color:var(--red)">${sc.data.error}</div>`;
+
+  const pg = document.getElementById('proc-grid');
+  if (rt.ok) {
+    const procs = (rt.data.procedures || []).map(p => `
+      <div class="proc-card">
+        <div class="proc-card-head">
+          <span class="proc-card-name">${p.ROUTINE_NAME}</span>
+          <span class="proc-type-badge proc">${p.ROUTINE_TYPE}</span>
+        </div>
+        <div class="proc-body"><pre class="proc-code">${(p.ROUTINE_DEFINITION || '').slice(0, 600)}</pre></div>
+      </div>
+    `).join('');
+    const trigs = (rt.data.triggers || []).map(t => `
+      <div class="proc-card">
+        <div class="proc-card-head">
+          <span class="proc-card-name">${t.TRIGGER_NAME}</span>
+          <span class="proc-type-badge trigger">TRIGGER</span>
+        </div>
+        <div class="proc-body">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px">${t.ACTION_TIMING} ${t.EVENT_MANIPULATION} ON ${t.EVENT_OBJECT_TABLE}</div>
+          <pre class="proc-code">${(t.ACTION_STATEMENT || '').slice(0, 400)}</pre>
+        </div>
+      </div>
+    `).join('');
+    pg.innerHTML = procs + trigs || '<div class="empty">No procedures or triggers found</div>';
+  } else pg.innerHTML = `<div class="empty" style="color:var(--red)">${rt.data.error}</div>`;
+}
+
+function renderExecutor() {
+  const flows = [
+    {
+      title: 'CALL transfer_money(1, 2, 500)',
+      color: 'var(--teal)',
+      steps: [
+        {type:'CALL', name:'Procedure Invoked', desc:'transfer_money(sender=1, receiver=2, amount=₹500) called', sql:'CALL transfer_money(1, 2, 500);'},
+        {type:'TXN', name:'START TRANSACTION', desc:'Atomic block begins — all following steps must succeed', sql:'START TRANSACTION;'},
+        {type:'TRIGGER', name:'BEFORE UPDATE fires → audit_balance_update', desc:'Activates before Accounts row is modified for sender', sql:'-- TRIGGER audit_balance_update BEFORE UPDATE ON Accounts'},
+        {type:'UPDATE', name:'Deduct from sender', desc:'Account 1 (Rahul Sharma): balance − ₹500', sql:'UPDATE Accounts SET balance = balance - 500 WHERE account_id = 1;'},
+        {type:'INSERT', name:'Audit_Log insert', desc:'Trigger writes: account_id=1, old=49000, new=48500, action=BALANCE UPDATE', sql:'INSERT INTO Audit_Log(account_id, old_balance, new_balance, action_type) VALUES(1, 49000, 48500, "BALANCE UPDATE");'},
+        {type:'TRIGGER', name:'BEFORE UPDATE fires → audit_balance_update', desc:'Activates before Accounts row is modified for receiver', sql:'-- TRIGGER audit_balance_update BEFORE UPDATE ON Accounts'},
+        {type:'UPDATE', name:'Credit to receiver', desc:'Account 2 (Priya Singh): balance + ₹500', sql:'UPDATE Accounts SET balance = balance + 500 WHERE account_id = 2;'},
+        {type:'INSERT', name:'Audit_Log insert', desc:'Trigger writes: account_id=2, old=41000, new=41500, action=BALANCE UPDATE', sql:'INSERT INTO Audit_Log(account_id, old_balance, new_balance, action_type) VALUES(2, 41000, 41500, "BALANCE UPDATE");'},
+        {type:'INSERT', name:'Transactions row inserted', desc:'Record the completed transfer with status=SUCCESS', sql:'INSERT INTO Transactions(sender_account, receiver_account, amount, txn_type, status) VALUES(1, 2, 500, "TRANSFER", "SUCCESS");'},
+        {type:'TRIGGER', name:'AFTER INSERT fires → detect_high_amount', desc:'Evaluates IF NEW.amount > 20000 → ₹500 is NOT > 20000, condition FALSE, no fraud alert', sql:'-- IF 500 > 20000 → FALSE → no Fraud_Alert INSERT, no risk_score UPDATE'},
+        {type:'TXN', name:'COMMIT', desc:'All changes persisted successfully, transaction closed', sql:'COMMIT;'},
+      ]
+    },
+    {
+      title: 'INSERT INTO Transactions (amount=₹25,000) — detect_high_amount trigger',
+      color: 'var(--pink)',
+      steps: [
+        {type:'INSERT', name:'Transaction inserted', desc:'New transfer with amount=₹25,000 — exceeds fraud threshold', sql:'INSERT INTO Transactions(sender_account, receiver_account, amount, txn_type, status) VALUES(1, 3, 25000, "TRANSFER", "SUCCESS");'},
+        {type:'TRIGGER', name:'AFTER INSERT fires → detect_high_amount', desc:'Trigger activates automatically after the row is committed', sql:'-- TRIGGER detect_high_amount AFTER INSERT ON Transactions FOR EACH ROW'},
+        {type:'SELECT', name:'Condition evaluated', desc:'IF NEW.amount > 20000 → 25000 > 20000 → TRUE', sql:'IF NEW.amount > 20000 THEN'},
+        {type:'INSERT', name:'Fraud_Alert created', desc:'Alert inserted: account=1, txn=txn_id, fraud_type=High Amount Transaction, level=HIGH', sql:'INSERT INTO Fraud_Alerts(account_id, txn_id, fraud_type, risk_level) VALUES(1, NEW.txn_id, "High Amount Transaction", "HIGH");'},
+        {type:'UPDATE', name:'Risk score incremented', desc:'Sender account risk_score increased by 20', sql:'UPDATE Accounts SET risk_score = risk_score + 20 WHERE account_id = 1;'},
+        {type:'TRIGGER', name:'BEFORE UPDATE fires → audit_balance_update', desc:'risk_score changed but balance did NOT change → IF OLD.balance <> NEW.balance → FALSE, no audit log', sql:'-- balance unchanged → audit trigger exits without INSERT'},
+      ]
+    },
+    {
+      title: 'UPDATE Accounts — audit_balance_update trigger',
+      color: 'var(--yellow)',
+      steps: [
+        {type:'UPDATE', name:'Accounts row updated', desc:'Any UPDATE statement on Accounts table triggers the BEFORE trigger', sql:'UPDATE Accounts SET balance = 48000 WHERE account_id = 1;'},
+        {type:'TRIGGER', name:'BEFORE UPDATE fires → audit_balance_update', desc:'MySQL intercepts the UPDATE before writing to disk', sql:'-- TRIGGER audit_balance_update BEFORE UPDATE ON Accounts FOR EACH ROW'},
+        {type:'SELECT', name:'Condition evaluated', desc:'IF OLD.balance <> NEW.balance → checks whether balance actually changed', sql:'IF OLD.balance <> NEW.balance THEN'},
+        {type:'INSERT', name:'Audit_Log insert', desc:'Snapshot of old and new balance stored with timestamp', sql:'INSERT INTO Audit_Log(account_id, old_balance, new_balance, action_type) VALUES(OLD.account_id, OLD.balance, NEW.balance, "BALANCE UPDATE");'},
+        {type:'UPDATE', name:'Original UPDATE proceeds', desc:'MySQL continues with the Accounts row write after trigger completes', sql:'-- Accounts.balance = 48000 written to disk'},
+      ]
+    }
+  ];
+
+  const typeColor = { SELECT:'var(--blue)', INSERT:'var(--green)', UPDATE:'var(--yellow)', TXN:'var(--teal)', TRIGGER:'var(--pink)', CALL:'var(--teal)' };
+  document.getElementById('exec-content').innerHTML = flows.map(f => `
+    <div class="exec-card">
+      <div class="exec-card-head">
+        <span style="color:${f.color};font-size:12px">●</span>
+        <span>${f.title}</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--text3)">${f.steps.length} steps</span>
+      </div>
+      ${f.steps.map((s,i) => `
+        <div class="exec-step">
+          <div class="exec-num">${i+1}</div>
+          <div class="exec-detail">
+            <div class="exec-name">${s.name}</div>
+            <div class="exec-desc">${s.desc}</div>
+            <div class="exec-sql">${s.sql}</div>
+          </div>
+          <div class="exec-type" style="color:${typeColor[s.type]||'var(--text3)'}">${s.type}</div>
+          <div class="exec-ok">✓</div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+async function runQuery() {
+  const sql = document.getElementById('qe-input').value.trim();
+  if (!sql) return;
+  const result = document.getElementById('qe-result');
+  result.innerHTML = '<div class="loading"><div class="spin"></div>Running...</div>';
+  const { data, ok, ms } = await apiFetch('/api/query', { method: 'POST', body: JSON.stringify({ sql }) });
+  addLog('SELECT', sql.slice(0, 100) + (sql.length > 100 ? '...' : ''), ms, ok ? null : data.error);
+  if (ok && data.rows !== undefined) {
+    if (!data.rows.length) { result.innerHTML = '<div class="qe-result-meta"><span>0 rows</span><span>' + ms + 'ms</span></div><div class="qe-empty">No results</div>'; return; }
+    const th = data.columns.map(c => `<th>${c}</th>`).join('');
+    const tb = data.rows.map(r => `<tr>${data.columns.map(c => `<td>${r[c] ?? 'NULL'}</td>`).join('')}</tr>`).join('');
+    result.innerHTML = `<div class="qe-result-meta"><span>${data.rows.length} rows · ${data.columns.length} cols</span><span>${ms}ms</span></div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`;
+  } else {
+    result.innerHTML = `<div class="qe-error">${data.error}</div>`;
+  }
+}
+
+function setQ(q) { document.getElementById('qe-input').value = q; }
+
+async function doTransfer() {
+  const sender = document.getElementById('tf-sender').value;
+  const receiver = document.getElementById('tf-receiver').value;
+  const amount = document.getElementById('tf-amount').value;
+  const msg = document.getElementById('tf-msg');
+  msg.innerHTML = '<div class="loading"><div class="spin"></div>Executing...</div>';
+  const { data, ok, ms } = await apiFetch('/api/transfer', { method: 'POST', body: JSON.stringify({ sender, receiver, amount }) });
+  addLog('CALL', `CALL transfer_money(${sender}, ${receiver}, ${amount})`, ms, ok ? null : data.error);
+  if (ok) {
+    msg.innerHTML = `<div class="form-msg ok">${data.message} · ${ms}ms</div>`;
+    tableLoaded['Transactions'] = false;
+    tableLoaded['Accounts'] = false;
+    tableLoaded['Audit_Log'] = false;
+    await refreshAll();
+  } else {
+    msg.innerHTML = `<div class="form-msg err">${data.error}</div>`;
+  }
+}
+
+const panelTitles = {
+  overview: ['Overview', 'fraud_detection_bank admin panel'],
+  'query-log': ['Query Log', 'live query trace + executor'],
+  'tbl-Users': ['Users', 'SELECT * FROM Users'],
+  'tbl-Accounts': ['Accounts', 'SELECT * FROM Accounts'],
+  'tbl-Transactions': ['Transactions', 'SELECT * FROM Transactions'],
+  'tbl-Fraud_Alerts': ['Fraud_Alerts', 'SELECT * FROM Fraud_Alerts'],
+  'tbl-Audit_Log': ['Audit_Log', 'SELECT * FROM Audit_Log'],
+  'tbl-Risk_Score_History': ['Risk_Score_History', 'SELECT * FROM Risk_Score_History'],
+  schema: ['Schema', 'information_schema — tables, columns, FK, routines'],
+  executor: ['Execution Visualizer', 'stored procedure + trigger trace'],
+  transfer: ['Transfer Money', 'CALL transfer_money(sender, receiver, amount)'],
+};
+
+async function nav(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const t = panelTitles[name] || [name, ''];
+  document.getElementById('page-title').textContent = t[0];
+  document.getElementById('page-sub').textContent = t[1];
+
+  if (name.startsWith('tbl-')) await loadTable(name.slice(4));
+  if (name === 'schema') await loadSchema();
+  if (name === 'executor') renderExecutor();
+}
+
+async function refreshAll() {
+  await testConn();
+  await loadStats();
+  if (document.getElementById('panel-overview').classList.contains('active')) await loadOverview();
+}
+
+document.getElementById('qe-input').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
+});
+
+refreshAll().then(() => {
+  if (document.getElementById('panel-overview').classList.contains('active')) loadOverview();
+});
+</script>
+</body>
+</html>

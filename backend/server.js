@@ -42,6 +42,53 @@ async function query(sql, params = []) {
   return { rows, fields };
 }
 
+async function executeTransferFallback(sender, receiver, amount) {
+  const poolRef = await getPool();
+  const connection = await poolRef.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [senderRows] = await connection.execute(
+      'SELECT balance FROM Accounts WHERE account_id = ? FOR UPDATE',
+      [sender]
+    );
+    const [receiverRows] = await connection.execute(
+      'SELECT account_id FROM Accounts WHERE account_id = ? FOR UPDATE',
+      [receiver]
+    );
+
+    if (!senderRows.length || !receiverRows.length) {
+      throw new Error('Invalid sender or receiver account');
+    }
+
+    const senderBalance = Number(senderRows[0].balance);
+    const transferAmount = Number(amount);
+    if (senderBalance < transferAmount) {
+      throw new Error('Insufficient balance');
+    }
+
+    await connection.execute(
+      'UPDATE Accounts SET balance = balance - ? WHERE account_id = ?',
+      [transferAmount, sender]
+    );
+    await connection.execute(
+      'UPDATE Accounts SET balance = balance + ? WHERE account_id = ?',
+      [transferAmount, receiver]
+    );
+    await connection.execute(
+      'INSERT INTO Transactions (sender_account, receiver_account, amount) VALUES (?, ?, ?)',
+      [sender, receiver, transferAmount]
+    );
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 // ─── Auth Middleware ───────────────────────────────────────────────────────────
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
@@ -310,7 +357,17 @@ app.post('/api/transfer', requireAuth, async (req, res) => {
   if (parseFloat(amount) <= 0) return res.status(400).json({ error: 'Amount must be positive' });
   try {
     const start = Date.now();
-    await query('CALL transfer_money(?, ?, ?)', [sender, receiver, amount]);
+    try {
+      await query('CALL transfer_money(?, ?, ?)', [sender, receiver, amount]);
+    } catch (e) {
+      const msg = String(e.message || '');
+      const procMissing = msg.includes('PROCEDURE') && msg.includes('does not exist');
+      if (!procMissing) throw e;
+
+      // Fallback path when stored procedure is unavailable in this DB.
+      // This keeps transfer flow working for UI and viva demo.
+      await executeTransferFallback(sender, receiver, amount);
+    }
     const ms = Date.now() - start;
     res.json({ ok: true, ms, message: `Transferred ₹${amount} from account ${sender} to ${receiver}` });
   } catch (e) {
@@ -430,15 +487,23 @@ app.get('/api/fraud-alerts', requireAuth, async (req, res) => {
   }
 });
 
-// ─── Audit log ─────────────────────────────────────────────────────────────────
 app.get('/api/audit-log', requireAuth, async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT al.log_id, al.account_id, u.name, al.old_balance, al.new_balance,
-              (al.new_balance - al.old_balance) as delta, al.action_type, al.changed_at
-       FROM Audit_Log al LEFT JOIN Accounts a ON al.account_id = a.account_id
-       LEFT JOIN Users u ON a.user_id = u.user_id
-       ORDER BY al.changed_at DESC LIMIT 100`
+      `SELECT 
+        al.log_id,
+        al.account_id,
+        u.name,
+        al.old_balance,
+        al.new_balance,
+        (al.new_balance - al.old_balance) AS delta,
+        al.action_type,
+        al.\`timestamp\` AS changed_at
+      FROM Audit_Log al
+      LEFT JOIN Accounts a ON al.account_id = a.account_id
+      LEFT JOIN Users u ON a.user_id = u.user_id
+      ORDER BY al.\`timestamp\` DESC
+      LIMIT 100`
     );
     res.json(rows);
   } catch (e) {

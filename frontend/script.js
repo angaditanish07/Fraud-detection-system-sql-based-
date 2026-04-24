@@ -93,7 +93,10 @@ function showAppForUser(username) {
   document.getElementById("sidebar-avatar").textContent = username[0].toUpperCase();
 }
 
-function addLog(type, sql, ms, err) {
+function addLog(type, sql, ms, err, source = "system") {
+  // Keep Live Query Log clean: only show admin-triggered queries.
+  if (source !== "admin") return;
+
   logCount++;
   const entry = { type, sql, ms, err, time: new Date().toTimeString().slice(0, 8) };
   logEntries.unshift(entry);
@@ -311,7 +314,7 @@ async function loadAuditLog() {
         <td>₹${Number(row.new_balance).toLocaleString()}</td>
         <td class="${delta >= 0 ? "delta-positive" : "delta-negative"}">${delta >= 0 ? "+" : ""}₹${delta.toLocaleString()}</td>
         <td><span class="badge badge-purple">${row.action_type}</span></td>
-        <td class="text-muted">${formatDate(row.changed_at)}</td>
+        <td class="text-muted">${formatDate(row.changed_at || row.timestamp)}</td>
       </tr>`;
     }).join("")}</tbody></table>`;
 }
@@ -461,7 +464,7 @@ async function doTransfer() {
   messageArea.innerHTML = '<div class="loading"><div class="spin"></div>Executing stored procedure...</div>';
 
   const { data, ok, ms } = await apiFetch("/api/transfer", { method: "POST", body: JSON.stringify({ sender, receiver, amount }) });
-  addLog("CALL", `CALL transfer_money(${sender}, ${receiver}, ${amount})`, ms, ok ? null : data.error);
+  addLog("CALL", `CALL transfer_money(${sender}, ${receiver}, ${amount})`, ms, ok ? null : data.error, "admin");
   button.disabled = false;
   button.textContent = "Execute Transfer →";
 
@@ -481,7 +484,7 @@ async function runQuery() {
   result.innerHTML = '<div class="loading"><div class="spin"></div>Running...</div>';
 
   const { data, ok, ms } = await apiFetch("/api/query", { method: "POST", body: JSON.stringify({ sql }) });
-  addLog("SELECT", sql.slice(0, 120) + (sql.length > 120 ? "..." : ""), ms, ok ? null : data.error);
+  addLog("SELECT", sql.slice(0, 120) + (sql.length > 120 ? "..." : ""), ms, ok ? null : data.error, "admin");
   if (ok && data.rows !== undefined) {
     if (!data.rows.length) {
       result.innerHTML = `<div class="qe-meta"><span>0 rows</span><span>${ms}ms</span></div><div class="qe-empty">No results</div>`;
